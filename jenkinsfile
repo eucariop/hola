@@ -1,0 +1,36 @@
+def appName = "${params.PROJECT_NAME}"
+def imageBuildConfig = appName
+def deploymentConfig = appName
+
+pipeline{
+    agent{
+        label "maven"
+    }
+    stage("Build"){
+        steps{
+            echo "Construir el artefacto"
+            sh 'mvn package'
+            echo "image build"
+            script {
+                openshift.withCluster(){
+                    openshift.selector("bc", imageBuildConfig).startBuild("--from-file=target/ROOT.war", "--wait")
+                }
+            }
+        }
+        post{
+            success{
+                archiveArtifacts artifacts: 'target/**.war', fingerprint: true
+            }
+        }
+    }
+    stage("Deploy"){
+        steps{
+            script {
+                openshift.withCluster(){
+                    openshift.selector("bc", deploymentConfig).rollout()
+                }                    
+            }
+
+        }
+    }
+}
